@@ -24,7 +24,9 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "dma_utils.c"
+#include "./dma_utils.h"
+
+int verbose = 0;
 
 static struct option const long_opts[] = {
 	{"device", required_argument, NULL, 'd'},
@@ -103,7 +105,7 @@ int main(int argc, char *argv[])
 	uint64_t count = COUNT_DEFAULT;
 	char *infname = NULL;
 	char *ofname = NULL;
-  uint32_t wait_us = 1000;
+  uint32_t wait_us = 0;
 
 	while ((cmd_opt =
 		getopt_long(argc, argv, "vhc:f:d:a:k:s:o:w:u:", long_opts,
@@ -214,6 +216,7 @@ static int test_dma(char *devname, uint64_t addr,
 		}
 	}
 
+  // buffer allocation
 	posix_memalign((void **)&allocated, 4096 /*alignment */ , size + 4096);
 	if (!allocated) {
 		fprintf(stderr, "OOM %lu.\n", size + 4096);
@@ -221,9 +224,10 @@ static int test_dma(char *devname, uint64_t addr,
 		goto out;
 	}
 	buffer = allocated + offset;
+
 	if (verbose)
 		fprintf(stdout, "host buffer 0x%lx = %p\n",
-			size + 4096, buffer); 
+			size + 4096, buffer);
 
 	for (i = 0; i < count; i++) {
     if (infile_fd >= 0) {
@@ -253,11 +257,12 @@ static int test_dma(char *devname, uint64_t addr,
 		/* subtract the start time from the end time */
 		timespec_sub(&ts_end, &ts_start);
 		total_time += ts_end.tv_nsec;
+
 		/* a bit less accurate but side-effects are accounted for */
 		if (verbose)
-		fprintf(stdout,
-			"#%lu: CLOCK_MONOTONIC %ld.%09ld sec. write %ld bytes\n",
-			i, ts_end.tv_sec, ts_end.tv_nsec, size); 
+      fprintf(stdout,
+              "#%lu: CLOCK_MONOTONIC %ld.%09ld sec. write %ld bytes\n",
+              i, ts_end.tv_sec, ts_end.tv_nsec, size); 
 			
 		if (outfile_fd >= 0) {
 			rc = write_from_buffer(ofname, outfile_fd, buffer,
@@ -268,7 +273,7 @@ static int test_dma(char *devname, uint64_t addr,
 		}
 
     //
-    usleep(wait_us);
+    if(wait_us) usleep(wait_us);
 	}
 
 	if (!underflow) {

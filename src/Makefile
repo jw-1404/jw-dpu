@@ -8,11 +8,11 @@ endif
 
 all: jw_reg_rw jw_to_device jw_from_device jw_test_chrdev
 
-jw_to_device: dma_to_device.o
-	$(CC) -lrt -o $@ $< -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -D_LARGE_FILE_SOURCE
+jw_to_device: dma_to_device.o dma_utils.o
+	$(CC)  -lrt -o $@ $^ -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -D_LARGE_FILE_SOURCE
 
-jw_from_device: dma_from_device.o
-	$(CC) -lrt -o $@ $< -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -D_LARGE_FILE_SOURCE
+jw_from_device: dma_from_device.o dma_utils.o
+	$(CC) -lrt -o $@ $^ -D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -D_LARGE_FILE_SOURCE
 
 jw_reg_rw: reg_rw.o
 	$(CC) -o $@ $<

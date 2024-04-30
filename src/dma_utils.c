@@ -8,12 +8,7 @@
  * LICENSE file in the root directory of this source tree)
  */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <time.h>
-#include <errno.h>
-#include <sys/types.h>
+#include "dma_utils.h"
 
 /*
  * man 2 write:
@@ -25,7 +20,6 @@
 
 #define RW_MAX_SIZE	0x7ffff000
 
-int verbose = 0;
 
 uint64_t getopt_integer(char *optarg)
 {
@@ -40,6 +34,7 @@ uint64_t getopt_integer(char *optarg)
 	return value;
 }
 
+/* read until all requested bytes back */
 ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
 			uint64_t base)
 {
@@ -84,8 +79,8 @@ ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
 		loop++;
 	}
 
-  fprintf(stdout, "%s (loop-end), read 0x%lx/0x%lx.\n",
-			fname, count, size);
+  fprintf(stdout, "%s (loop-%d, the end), read 0x%lx/0x%lx.\n",
+          fname, loop, count, size);
 
 	return count;
 }
@@ -134,8 +129,8 @@ ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size,
 		loop++;
 	}
 
-  fprintf(stdout, "%s (loop-end), write 0x%lx/0x%lx.\n",
-			fname, count, size);
+  fprintf(stdout, "%s (loop-%d, the end), write 0x%lx/0x%lx.\n",
+          fname, loop, count, size);
 
 	return count;
 }

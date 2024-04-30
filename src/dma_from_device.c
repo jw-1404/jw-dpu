@@ -23,11 +23,13 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "dma_utils.c"
+#include "./dma_utils.h"
 
 #define DEVICE_NAME_DEFAULT "/dev/xdma0_c2h_0"
-#define SIZE_DEFAULT (32)
+#define SIZE_DEFAULT (4096)
 #define COUNT_DEFAULT (1)
+
+int verbose = 0;
 
 static struct option const long_opts[] = {
 	{"device", required_argument, NULL, 'd'},
@@ -103,7 +105,7 @@ int main(int argc, char *argv[])
 	uint64_t size = SIZE_DEFAULT;
 	uint64_t offset = 0;
 	uint64_t count = COUNT_DEFAULT;
-  uint32_t wait_us = 1000;
+  uint32_t wait_us = 0;
 	char *ofname = NULL;
 
 	while ((cmd_opt = getopt_long(argc, argv, "vhec:f:d:a:k:s:o:u:", long_opts,
@@ -191,21 +193,21 @@ static int test_dma(char *devname, uint64_t addr,
 	if (fpga_fd < 0) {
                 fprintf(stderr, "unable to open device %s, %d.\n",
                         devname, fpga_fd);
-		perror("open device");
+                perror("open device");
                 return -EINVAL;
-        }
+  }
 
 	/* create file to write data to */
 	if (ofname) {
 		out_fd = open(ofname, O_RDWR | O_CREAT | O_TRUNC | O_SYNC,
 				0666);
 		if (out_fd < 0) {
-                        fprintf(stderr, "unable to open output file %s, %d.\n",
-                                ofname, out_fd);
-			perror("open output file");
-                        rc = -EINVAL;
-                        goto out;
-                }
+      fprintf(stderr, "unable to open output file %s, %d.\n",
+              ofname, out_fd);
+      perror("open output file");
+      rc = -EINVAL;
+      goto out;
+    }
 	}
 
 	posix_memalign((void **)&allocated, 4096 /*alignment */ , size + 4096);
@@ -220,8 +222,9 @@ static int test_dma(char *devname, uint64_t addr,
 	fprintf(stdout, "host buffer 0x%lx, %p.\n", size + 4096, buffer);
 
 	for (i = 0; i < count; i++) {
-		rc = clock_gettime(CLOCK_MONOTONIC, &ts_start);
+    clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
+    //
     rc = read_to_buffer(devname, fpga_fd, buffer, size, addr);
     if (rc < 0)
       goto out;
@@ -238,11 +241,12 @@ static int test_dma(char *devname, uint64_t addr,
 		/* subtract the start time from the end time */
 		timespec_sub(&ts_end, &ts_start);
 		total_time += ts_end.tv_nsec;
+
 		/* a bit less accurate but side-effects are accounted for */
 		if (verbose)
-		fprintf(stdout,
-			"#%lu: CLOCK_MONOTONIC %ld.%09ld sec. read %ld/%ld bytes\n",
-			i, ts_end.tv_sec, ts_end.tv_nsec, bytes_done, size);
+      fprintf(stdout,
+              "#%lu: CLOCK_MONOTONIC %ld.%09ld sec. read %ld/%ld bytes\n",
+              i, ts_end.tv_sec, ts_end.tv_nsec, bytes_done, size);
 
 		/* file argument given? */
 		if (out_fd >= 0) {
@@ -250,11 +254,11 @@ static int test_dma(char *devname, uint64_t addr,
 					 bytes_done, out_offset);
 			if (rc < 0 || rc < bytes_done)
 				goto out;
-			out_offset += bytes_done;
+			/* out_offset += bytes_done; */
 		}
 
     //
-    usleep(wait_us);
+    if(wait_us) usleep(wait_us);
 	}
 
 	if (!underflow) {
