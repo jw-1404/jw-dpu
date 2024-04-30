@@ -74,21 +74,19 @@ ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
 			return -EIO;
 		}
 
-		count += rc;
 		if (rc != bytes) {
-			fprintf(stderr, "%s, read underflow 0x%lx/0x%lx @ 0x%lx.\n",
-				fname, rc, bytes, offset);
-			break;
+			fprintf(stderr, "%s (loop-%d), read underflow 0x%lx/0x%lx @ 0x%lx.\n",
+              fname, loop, rc, bytes, offset);
 		}
 
-		buf += bytes;
-		offset += bytes;
+		count += rc;
+		buf += rc;
 		loop++;
 	}
 
-	if (count != size && loop)
-		fprintf(stderr, "%s, read underflow 0x%lx/0x%lx.\n",
+  fprintf(stdout, "%s (loop-end), read 0x%lx/0x%lx.\n",
 			fname, count, size);
+
 	return count;
 }
 
@@ -126,20 +124,17 @@ ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size,
 			return -EIO;
 		}
 
-		count += rc;
 		if (rc != bytes) {
-			fprintf(stderr, "%s, write underflow 0x%lx/0x%lx @ 0x%lx.\n",
-				fname, rc, bytes, offset);
-			break;
+			fprintf(stderr, "%s (loop-%d), write underflow 0x%lx/0x%lx @ 0x%lx.\n",
+              fname, loop, rc, bytes, offset);
 		}
-		buf += bytes;
-		offset += bytes;
 
+		count += rc;
+		buf += rc;
 		loop++;
-	}	
+	}
 
-	if (count != size && loop)
-		fprintf(stderr, "%s, write underflow 0x%lx/0x%lx.\n",
+  fprintf(stdout, "%s (loop-end), write 0x%lx/0x%lx.\n",
 			fname, count, size);
 
 	return count;

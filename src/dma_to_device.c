@@ -225,13 +225,13 @@ static int test_dma(char *devname, uint64_t addr,
 		fprintf(stdout, "host buffer 0x%lx = %p\n",
 			size + 4096, buffer); 
 
-	if (infile_fd >= 0) {
-		rc = read_to_buffer(infname, infile_fd, buffer, size, 0);
-		if (rc < 0 || rc < size)
-			goto out;
-	}
-
 	for (i = 0; i < count; i++) {
+    if (infile_fd >= 0) {
+      rc = read_to_buffer(infname, infile_fd, buffer, size, 0);
+      if (rc < 0 || rc < size)
+        goto out;
+    }
+
 		/* write buffer to AXI MM address using SGDMA */
 		rc = clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
