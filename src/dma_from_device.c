@@ -225,18 +225,33 @@ static int test_dma(char *devname, uint64_t addr,
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     //
-    rc = read_to_buffer(devname, fpga_fd, buffer, size, addr);
-    if (rc < 0)
-      goto out;
-    bytes_done = rc;
+    uint64_t bytes_done = 0;
+    char* buf=buffer;
+    int loop = 0;
+
+    while(bytes_done < size) {
+      uint64_t bytes = size - bytes_done;
+
+      /* rc = read_to_buffer(devname, fpga_fd, buf, bytes, addr); */
+      rc = aio_read_to_buffer(devname, fpga_fd, buf, bytes);
+      if (rc < 0)
+        /* goto out; */
+        continue;
+
+      if (rc != bytes) {
+        fprintf(stderr, "%s (loop-%d), read underflow 0x%lx/0x%lx @ 0x%lx.\n",
+                devname, loop, rc, bytes, offset);
+      }
+
+      bytes_done += rc;
+      buf +=rc;
+      loop++;
+    }
+
+    fprintf(stdout, "%s (loop-%d, the end), read 0x%lx/0x%lx.\n",
+            devname, loop, bytes_done, size);
 
 		clock_gettime(CLOCK_MONOTONIC, &ts_end);
-
-		if (bytes_done < size) {
-			fprintf(stderr, "#%d: underflow %ld/%ld.\n",
-				i, bytes_done, size);
-			underflow = 1;
-		}
 
 		/* subtract the start time from the end time */
 		timespec_sub(&ts_end, &ts_start);

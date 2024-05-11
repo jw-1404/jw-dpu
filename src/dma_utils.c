@@ -9,6 +9,9 @@
  */
 
 #include "dma_utils.h"
+#include <aio.h>
+#include <string.h>
+#include <stdlib.h>
 
 /*
  * man 2 write:
@@ -39,52 +42,30 @@ ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
 			uint64_t base)
 {
 	ssize_t rc;
-	uint64_t count = 0;
-	char *buf = buffer;
 	off_t offset = base;
-	int loop = 0;
+  if (offset) {
+    rc = lseek(fd, offset, SEEK_SET);
+    if (rc != offset) {
+      fprintf(stderr, "%s, seek off 0x%lx != 0x%lx.\n",
+              fname, rc, offset);
+      perror("seek file");
+      return -EIO;
+    }
+  }
 
-	while (count < size) {
-		uint64_t bytes = size - count;
+  /* read data from file into memory buffer */
+  rc = read(fd, buffer, size);
+  if (rc < 0) {
+    fprintf(stderr, "%s, read 0x%lx @ 0x%lx failed %ld.\n",
+            fname, size, offset, rc);
+    perror("read file");
+    return -EIO;
+  }
 
-		if (bytes > RW_MAX_SIZE)
-			bytes = RW_MAX_SIZE;
-
-		if (offset) {
-			rc = lseek(fd, offset, SEEK_SET);
-			if (rc != offset) {
-				fprintf(stderr, "%s, seek off 0x%lx != 0x%lx.\n",
-					fname, rc, offset);
-				perror("seek file");
-				return -EIO;
-			}
-		}
-
-		/* read data from file into memory buffer */
-		rc = read(fd, buf, bytes);
-		if (rc < 0) {
-			fprintf(stderr, "%s, read 0x%lx @ 0x%lx failed %ld.\n",
-				fname, bytes, offset, rc);
-			perror("read file");
-			return -EIO;
-		}
-
-		if (rc != bytes) {
-			fprintf(stderr, "%s (loop-%d), read underflow 0x%lx/0x%lx @ 0x%lx.\n",
-              fname, loop, rc, bytes, offset);
-		}
-
-		count += rc;
-		buf += rc;
-		loop++;
-	}
-
-  fprintf(stdout, "%s (loop-%d, the end), read 0x%lx/0x%lx.\n",
-          fname, loop, count, size);
-
-	return count;
+	return rc;
 }
 
+/* write until all requested bytes out */
 ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size,
 			uint64_t base)
 {
@@ -170,4 +151,40 @@ void timespec_sub(struct timespec *t1, struct timespec *t2)
 		t1->tv_sec--;
 		t1->tv_nsec += 1000000000;
 	}
+}
+
+/************************** posix aio ********************/
+
+/* posix aio read until all requested bytes back */
+ssize_t aio_read_to_buffer(char *devname, int fd, char *buffer, uint64_t size)
+{
+  struct aiocb aio_cb;
+  memset(&aio_cb, 0, sizeof(struct aiocb));
+
+  aio_cb.aio_fildes = fd;
+  aio_cb.aio_buf = buffer;
+  aio_cb.aio_nbytes = size;
+
+  if (aio_read(&aio_cb) == -1) {
+    fprintf(stderr, "aio_read() failed: %s\n", strerror(errno));
+    exit(2);
+  }
+
+  int err;
+  int ret;
+  /* Wait until end of transaction */
+  while ((err = aio_error (&aio_cb)) == EINPROGRESS);
+
+  err = aio_error(&aio_cb);
+  ret = aio_return(&aio_cb);
+
+  if (ret<0) {
+    fprintf(stderr, "aio_error() : %s\n", strerror (errno));
+    return -EIO;
+  }
+
+  if (ret != size) {
+    fprintf(stderr, "aio_return():underflow 0x%lx/0x%lx\n",ret,size);
+  }
+	return ret;
 }

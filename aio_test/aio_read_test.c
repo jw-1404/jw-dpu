@@ -1,24 +1,3 @@
-/*
- * Copyright (c) 2004, Bull SA. All rights reserved.
- * Created by:  Laurent.Vivier@bull.net
- * This file is licensed under the GPL license.  For the full content
- * of this license, see the COPYING file at the top level of this
- * source tree.
- */
-
-/*
- * assertion:
- *
- * aio_lio_opcode shall be ignored.
- *
- * method:
- *
- *      - write data to a file
- *      - fill in an aiocb with an LIO_WRITE aio_lio_opcode
- *      - call aio_read with this aiocb
- *      - check data is effectively read (ignoring aio_lio_opcode)
- */
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <unistd.h>
