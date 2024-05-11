@@ -239,22 +239,37 @@ static int test_dma(char *devname, uint64_t addr,
 		/* write buffer to AXI MM address using SGDMA */
 		rc = clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    rc = write_from_buffer(devname, fpga_fd, buffer, size,
-                           addr);
-    if (rc < 0)
-      goto out;
+    //
+    uint64_t bytes_done = 0;
+    char* buf=buffer;
+    int loop = 0;
 
-    bytes_done = rc;
+    while(bytes_done < size) {
+      
+      uint64_t bytes = size - bytes_done;
+      /* rc = write_from_buffer(devname, fpga_fd, buf, bytes, 0); */
+      rc = aio_write_from_buffer(devname, fpga_fd, buf, bytes);
+      if (rc < 0) {
+        fprintf(stderr, "%s: write more data ...\n", devname);
+        /* goto out; */
+        continue;
+      }
+      
+      if (rc != bytes) { // underflow is not error
+        fprintf(stderr, "%s (loop-%d), write underflow 0x%lx/0x%lx.\n",
+                devname, loop, rc, bytes);
+      }
 
-		rc = clock_gettime(CLOCK_MONOTONIC, &ts_end);
+      bytes_done += rc;
+      buf += rc;
+      loop++;
+    }
 
-		if (bytes_done < size) {
-			printf("#%d: underflow %ld/%ld.\n",
-				i, bytes_done, size);
-			underflow = 1;
-		}
+    fprintf(stdout, "%s (loop-%d, the end), write 0x%lx/0x%lx.\n",
+            devname, loop, bytes_done, size);
 
 		/* subtract the start time from the end time */
+		clock_gettime(CLOCK_MONOTONIC, &ts_end);
 		timespec_sub(&ts_end, &ts_start);
 		total_time += ts_end.tv_nsec;
 

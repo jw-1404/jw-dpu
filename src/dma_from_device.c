@@ -234,11 +234,13 @@ static int test_dma(char *devname, uint64_t addr,
 
       /* rc = read_to_buffer(devname, fpga_fd, buf, bytes, addr); */
       rc = aio_read_to_buffer(devname, fpga_fd, buf, bytes);
-      if (rc < 0)
+      if (rc < 0) { // ignore the any error and continue 
         /* goto out; */
+        fprintf(stderr, "%s: wait new data ...\n", devname);
         continue;
+    }
 
-      if (rc != bytes) {
+      if (rc != bytes) { // underflow is not error
         fprintf(stderr, "%s (loop-%d), read underflow 0x%lx/0x%lx @ 0x%lx.\n",
                 devname, loop, rc, bytes, offset);
       }

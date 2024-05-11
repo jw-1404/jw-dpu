@@ -155,7 +155,7 @@ void timespec_sub(struct timespec *t1, struct timespec *t2)
 
 /************************** posix aio ********************/
 
-/* posix aio read until all requested bytes back */
+/* posix aio read until some bytes back or timeout */
 ssize_t aio_read_to_buffer(char *devname, int fd, char *buffer, uint64_t size)
 {
   struct aiocb aio_cb;
@@ -178,13 +178,49 @@ ssize_t aio_read_to_buffer(char *devname, int fd, char *buffer, uint64_t size)
   err = aio_error(&aio_cb);
   ret = aio_return(&aio_cb);
 
-  if (ret<0) {
-    fprintf(stderr, "aio_error() : %s\n", strerror (errno));
+  /* in case of timeout and no bytes read, return -EIO */
+  if (err != 0) {
+    fprintf(stderr, "aio_read_to_buffer() timeout\n");
     return -EIO;
   }
 
   if (ret != size) {
-    fprintf(stderr, "aio_return():underflow 0x%lx/0x%lx\n",ret,size);
+    fprintf(stderr, "aio_read_to_buffer():underflow 0x%lx/0x%lx\n",ret,size);
+  }
+	return ret;
+}
+
+/* posix aio write some bytes or timeout*/
+ssize_t aio_write_from_buffer(char *devname, int fd, char *buffer, uint64_t size)
+{
+  struct aiocb aio_cb;
+  memset(&aio_cb, 0, sizeof(struct aiocb));
+
+  aio_cb.aio_fildes = fd;
+  aio_cb.aio_buf = buffer;
+  aio_cb.aio_nbytes = size;
+
+  if (aio_write(&aio_cb) == -1) {
+    fprintf(stderr, "aio_write() failed: %s\n", strerror(errno));
+    close(fd);
+    exit(2);
+  }
+
+  int err;
+  int ret;
+  /* Wait until end of transaction */
+  while ((err = aio_error (&aio_cb)) == EINPROGRESS);
+
+  err = aio_error(&aio_cb);
+  ret = aio_return(&aio_cb);
+
+  if (err != 0) {
+    fprintf(stderr, "aio_write_from_buffer() timeout\n");
+    return -EIO;
+  }
+
+  if (ret != size) {
+    fprintf(stderr, "aio_write_from_buffer():underflow 0x%lx/0x%lx\n",ret,size);
   }
 	return ret;
 }
