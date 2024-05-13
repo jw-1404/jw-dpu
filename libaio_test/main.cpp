@@ -35,7 +35,8 @@ static const void handle_error(int err) {
   } while (0)
 
 #define MB(X) (X * 1024 * 1024)
-#define SZ MB(50)
+#define SZ MB(5)
+#define COUNT 10
 
 static const int maxEvents = 10;
 char *dst = NULL;   // data we are reading
@@ -57,16 +58,17 @@ main (int argc, char *argv[])
   /* Create a file and fill it with random crap */
   FILE *file = fopen("crap.dat", "wb");
   if (file == NULL) FATAL("Unable to create crap.dat");
-  src = new char[SZ];
-  for (size_t i = 0; i < SZ; ++i) src[i] = rand();
-  size_t nr = fwrite(src, SZ, 1, file);
+  src = new char[SZ*COUNT];
+  for (size_t i = 0; i < SZ*COUNT; ++i) src[i] = rand();
+  size_t nr = fwrite(src, SZ*COUNT, 1, file);
   if (nr != 1) FATAL("Unable to fill crap.dat");
   fclose(file);
 
   /* Prepare the file to read */
   int fd = open("crap.dat", O_NONBLOCK, 0);
   if (fd < 0) FATAL("Error opening file");
-  dst = new char[SZ];
+  dst = new char[SZ*COUNT];
+  memset(dst, 0, SZ*COUNT);
 
   /* Now use *real* asynchronous IO to read back the file */
   io_context_t ctx;
@@ -75,17 +77,22 @@ main (int argc, char *argv[])
 
   /* This is the read job we asynchronously run */
   iocb *job = (iocb*) new iocb[1];
-  io_prep_pread(job, fd, dst, SZ, 0);
-  io_set_callback(job, check);
+  struct timespec timeout = {0, 0};
+  for(int i=0;i<COUNT;i++) {
+    io_prep_pread(job, fd, dst+i*SZ, SZ, i*SZ);
+    // io_set_callback(job, check);
 
-  /* Issue it now */
-  IO_RUN (io_submit, ctx, 1, &job);
-
-  /* Wait for it */
-  // io_event evt;
-  // IO_RUN (io_getevents, ctx, 1, 1, &evt, NULL);
-  // check(ctx, evt.obj, evt.res, evt.res2);
-  io_queue_run(ctx);
+    /* Issue it now */
+    IO_RUN(io_submit, ctx, 1, &job);
+    /* Wait for it */
+    io_event evt;
+    IO_RUN (io_getevents, ctx, 1, 1, &evt, &timeout);
+    // check(ctx, evt.obj, evt.res, evt.res2);
+  }
+  for (size_t i = 0; i < SZ*COUNT; ++i)
+    if (dst[i] != src[i])
+      FATAL("Error in async copy");
+  printf("DONE\n");
 
   close(fd);
   delete [] src;
