@@ -56,24 +56,30 @@ static const void handle_error(int err) {
 
 namespace po = boost::program_options;
 
-#define DEVICE_NAME_DEFAULT "/dev/xdma0_c2h_0"
-#define FILENAME_DEFAULT "output.dat"
+#define DEVICE_NAME_DEFAULT "/dev/xdma0_h2c_0"
 #define SIZE_DEFAULT 4096
 #define COUNT_DEFAULT 1
+#define FILENAME_DEFAULT "output_backup.dat"
 
 int dpu_fd = -1;
+int in_fd = -1;
 int out_fd = -1;
 char *allocated = NULL;
 uint64_t size;
 
-// save to file
-void save(io_context_t ctx, struct iocb *iocb, long res, long res2) {
-  if (res2)
-    FATAL("Error in async IO");
-  int rc = write_from_buffer("", out_fd, allocated, res, 0);
-  std::cout << res << "bytes saved\n";
-  if (rc < 0 || rc < res)
-    FATAL("Error writing output file");
+void create_rdm_file(const char *filename, int count) {
+  FILE *file = fopen(filename, "w+");
+  if (file == NULL)
+    FATAL("Unable to create crap.dat");
+
+  char *src = new char[size];
+  for (size_t i = 0; i < count; ++i) {
+    for (int j = 0; j < size; j++)
+      src[j] = rand();
+    fwrite(src, size, 1, file);
+  }
+  fclose(file);
+  delete[] src;
 }
 
 // only for xdma streaming device
@@ -81,6 +87,7 @@ int main(int argc, char *argv[])
 {
   std::string device;
   uint64_t count;
+  boost::optional<std::string> infile;
   std::string outfile;
   bool verbose = false;
   bool flush = false;
@@ -90,10 +97,10 @@ int main(int argc, char *argv[])
     ("help,h", "help messages")
     ("verbose,v", po::bool_switch(&verbose), "verbose mode")
     ("device,d", po::value<std::string>(&device)->default_value(DEVICE_NAME_DEFAULT), "name of xdma device node")
-    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT),"size (in bytes) of a single transfer")
+    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT), "size (in bytes) of a single transfer")
     ("count,c", po::value<uint64_t>(&count)->default_value(COUNT_DEFAULT), "total number of transfers")
     ("output,o", po::value<std::string>(&outfile)->default_value(FILENAME_DEFAULT), "name of output file")
-    ("flush,e", po::bool_switch(&flush), "truncate mode");
+    ("input,i", po::value(&infile), "name of input file (from random if not provided)");
 
   po::variables_map vm;
   po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -104,23 +111,26 @@ int main(int argc, char *argv[])
     return 0;
   }
 
+  /* Create a file and fill it with random crap */
+  if (!infile) create_rdm_file("crap.dat", count);
+  std::string filename = !infile ? "crap.dat" : *infile;
+  int in_fd = open(filename.c_str(), O_NONBLOCK, 0);
+  if (in_fd < 0)
+    FATAL("Error opening input file");
+
   //
-  if(flush)
-    dpu_fd = open(device.c_str(), O_RDWR | O_TRUNC);
-  else
-    dpu_fd = open(device.c_str(), O_RDWR);
+  dpu_fd = open(device.c_str(), O_WRONLY);
   if (dpu_fd < 0) {
     std::cout << "can't open device node: " << device << "\n";
     return -EINVAL;
   }
 
   //
-  ssize_t rc = 0;
   out_fd = open(outfile.c_str(), O_RDWR | O_CREAT | O_TRUNC | O_SYNC, 0666);
   if (out_fd < 0) {
     std::cout << "unable to open output file: " << outfile << "\n";
-    rc = -EINVAL;
     close(dpu_fd);
+    close(in_fd);
     if (out_fd >= 0)
       close(out_fd);
   }
@@ -128,12 +138,10 @@ int main(int argc, char *argv[])
   //
   posix_memalign((void **)&allocated, 4096 /*alignment */, size + 4096);
   if (!allocated) {
-    fprintf(stderr, "OOM %lu.\n", size + 4096);
-    std::cout << "OOM " << size+4096 << "\n";
-    rc = -ENOMEM;
+    std::cout << "OOM " << size + 4096 << "\n";
     close(dpu_fd);
-    if (out_fd >= 0)
-      close(out_fd);
+    close(in_fd);
+    close(out_fd);
   }
 
   //
@@ -149,18 +157,17 @@ int main(int argc, char *argv[])
   // struct timespec timeout = {0, 0};
 
   for (int i = 0; i < count; i++) {
+    memset(allocated, 0, size);
+    int rc = read_to_buffer("", in_fd, allocated, size, 0);
+    if (rc < 0 || rc < size) FATAL("insufficient input bytes\n");
+    write_from_buffer("", out_fd, allocated, size, 0);
+
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
-    memset(allocated, 0, size);
-    io_prep_pread(job, dpu_fd, allocated, size, 0);
-    // io_set_callback(job, save);
-
-    /* Issue it now */
+    io_prep_pwrite(job, dpu_fd, allocated, size, 0);
     IO_RUN(io_submit, ctx, 1, &job);
-    /* Wait for it */
     struct io_event evt;
     IO_RUN(io_getevents, ctx, 1, 1, &evt, NULL);
-    save(ctx, evt.obj, evt.res, evt.res2);
 
     //
     std::cout << "transfered counts: " << i << "\n";
@@ -175,10 +182,11 @@ int main(int argc, char *argv[])
   float result = ((float)size)*1000/avg_time;
   std::cout << device << ": average BW = " << size << ", " << result << "\n";
 
+  //
+  close(in_fd);
   close(out_fd);
   close(dpu_fd);
   free(allocated);
   
-  return rc;
+  return 0;
 }
-

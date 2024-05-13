@@ -15,3 +15,7 @@ add_executable(test_chrdev test_chrdev.c)
 add_executable(asio_from_dpu asio_from_dpu.cpp)
 target_link_libraries(asio_from_dpu PUBLIC aio Boost::program_options dma_util)
 target_include_directories(asio_from_dpu PUBLIC ${PROJECT_SOURCE_DIR}/lib)
+
+add_executable(asio_to_dpu asio_to_dpu.cpp)
+target_link_libraries(asio_to_dpu PUBLIC aio Boost::program_options dma_util)
+target_include_directories(asio_to_dpu PUBLIC ${PROJECT_SOURCE_DIR}/lib)
