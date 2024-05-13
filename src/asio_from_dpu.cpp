@@ -154,14 +154,14 @@ int main(int argc, char *argv[])
 
     memset(allocated, 0, size);
     io_prep_pread(job, dpu_fd, allocated, size, 0);
-    io_set_callback(job, save);
+    // io_set_callback(job, save);
 
     /* Issue it now */
     IO_RUN(io_submit, ctx, 1, &job);
     /* Wait for it */
     struct io_event evt;
     IO_RUN(io_getevents, ctx, 1, 1, &evt, NULL);
-
+    save(ctx, evt.obj, evt.res, evt.res2);
 
     //
     std::cout << "transfered counts: " << i << "\n";
