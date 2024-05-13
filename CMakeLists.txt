@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 #
-find_package(Boost 1.66 REQUIRED COMPONENTS program_options)
+find_package(Boost 1.66 REQUIRED COMPONENTS program_options system)
 
 #
 add_subdirectory(libaio_test)
