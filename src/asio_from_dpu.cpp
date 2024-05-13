@@ -68,10 +68,10 @@ uint64_t size;
 
 // save to file
 void save(io_context_t ctx, struct iocb *iocb, long res, long res2) {
-  if (res2 || res != size)
+  if (res2)
     FATAL("Error in async IO");
-  int rc = write_from_buffer("", out_fd, allocated, size, 0);
-  if (rc < 0 || rc < size)
+  int rc = write_from_buffer("", out_fd, allocated, res, 0);
+  if (rc < 0 || rc < res)
     FATAL("Error writing output file");
 }
 
