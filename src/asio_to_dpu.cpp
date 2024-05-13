@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
   /* Create a file and fill it with random crap */
   if (!infile) create_rdm_file("crap.dat", count);
   std::string filename = !infile ? "crap.dat" : *infile;
-  int in_fd = open(filename.c_str(), O_NONBLOCK, 0);
+  int in_fd = open(filename.c_str(), O_RDONLY);
   if (in_fd < 0)
     FATAL("Error opening input file");
 
