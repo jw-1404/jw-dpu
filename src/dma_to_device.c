@@ -247,8 +247,7 @@ static int test_dma(char *devname, uint64_t addr,
     while(bytes_done < size) {
       
       uint64_t bytes = size - bytes_done;
-      /* rc = write_from_buffer(devname, fpga_fd, buf, bytes, 0); */
-      rc = aio_write_from_buffer(devname, fpga_fd, buf, bytes);
+      rc = write_from_buffer(devname, fpga_fd, buf, bytes, 0);
       if (rc < 0) {
         fprintf(stderr, "%s: write more data ...\n", devname);
         /* goto out; */

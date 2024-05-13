@@ -232,8 +232,7 @@ static int test_dma(char *devname, uint64_t addr,
     while(bytes_done < size) {
       uint64_t bytes = size - bytes_done;
 
-      /* rc = read_to_buffer(devname, fpga_fd, buf, bytes, addr); */
-      rc = aio_read_to_buffer(devname, fpga_fd, buf, bytes);
+      rc = read_to_buffer(devname, fpga_fd, buf, bytes, addr);
       if (rc < 0) { // ignore the any error and continue 
         /* goto out; */
         fprintf(stderr, "%s: wait new data ...\n", devname);
