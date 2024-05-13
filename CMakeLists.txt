@@ -10,6 +10,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 find_package(Boost 1.66 REQUIRED COMPONENTS program_options system)
 
 #
-add_subdirectory(libaio_test)
 add_subdirectory(lib)
 add_subdirectory(src)
+add_subdirectory(tests)
