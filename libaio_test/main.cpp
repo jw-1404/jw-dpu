@@ -82,9 +82,10 @@ main (int argc, char *argv[])
   IO_RUN (io_submit, ctx, 1, &job);
 
   /* Wait for it */
-  io_event evt;
-  IO_RUN (io_getevents, ctx, 1, 1, &evt, NULL);
-  check(ctx, evt.obj, evt.res, evt.res2);
+  // io_event evt;
+  // IO_RUN (io_getevents, ctx, 1, 1, &evt, NULL);
+  // check(ctx, evt.obj, evt.res, evt.res2);
+  io_queue_run(ctx);
 
   close(fd);
   delete [] src;
