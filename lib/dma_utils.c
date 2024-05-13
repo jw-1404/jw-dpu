@@ -1,13 +1,3 @@
-/*
- * This file is part of the Xilinx DMA IP Core driver tools for Linux
- *
- * Copyright (c) 2016-present,  Xilinx, Inc.
- * All rights reserved.
- *
- * This source code is licensed under BSD-style license (found in the
- * LICENSE file in the root directory of this source tree)
- */
-
 #include "dma_utils.h"
 #include <aio.h>
 #include <string.h>
@@ -223,4 +213,14 @@ ssize_t aio_write_from_buffer(char *devname, int fd, char *buffer, uint64_t size
     fprintf(stderr, "aio_write_from_buffer():underflow 0x%lx/0x%lx\n",ret,size);
   }
 	return ret;
+}
+
+/************************** libaio ********************/
+
+ssize_t libaio_read_to_buffer(char *devname, int fd, char *buffer, uint64_t size)
+{
+}
+
+ssize_t libaio_write_from_buffer(char *devname, int fd, char *buffer, uint64_t size)
+{
 }
