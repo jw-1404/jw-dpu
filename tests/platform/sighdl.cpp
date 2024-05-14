@@ -2,7 +2,7 @@
 #include <iostream>
 
 namespace {
-volatile std::sig_atomic_t gSignalStatus;
+static volatile std::sig_atomic_t gSignalStatus = 1;
 }
 
 void signal_handler(int signal) { gSignalStatus = signal; }

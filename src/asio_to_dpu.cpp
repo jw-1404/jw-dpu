@@ -1,4 +1,5 @@
 #include "dma_utils.h"
+#include <signal.h>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -67,6 +68,7 @@ int out_fd = -1;
 char *allocated = NULL;
 uint64_t size;
 
+//
 void create_rdm_file(const char *filename, int count) {
   FILE *file = fopen(filename, "w+");
   if (file == NULL)
@@ -82,11 +84,20 @@ void create_rdm_file(const char *filename, int count) {
   delete[] src;
 }
 
+// 
+volatile sig_atomic_t keepRunning = 1;
+void sigHandler(int sig) { keepRunning = 0; }
+
 // only for xdma streaming device
 int main(int argc, char *argv[])
 {
+  //
+  signal(SIGINT, sigHandler);
+
+  //
   long page_size = sysconf(_SC_PAGESIZE);
 
+  //
   std::string device;
   uint64_t count;
   boost::optional<std::string> infile;
@@ -159,7 +170,7 @@ int main(int argc, char *argv[])
   IO_RUN(io_queue_init, maxEvents, &ctx);
   /* This is the read job we asynchronously run */
   iocb *job = (iocb *)new iocb[1];
-  // struct timespec timeout = {0, 0};
+  struct timespec timeout = {0, 1000000}; // 1 ms
 
   for (int i = 0; i < count; i++) {
     memset(allocated, 0, size);
@@ -172,7 +183,11 @@ int main(int argc, char *argv[])
     io_prep_pwrite(job, dpu_fd, allocated, size, 0);
     IO_RUN(io_submit, ctx, 1, &job);
     struct io_event evt;
-    IO_RUN(io_getevents, ctx, 1, 1, &evt, NULL);
+    // int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
+    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {}
+
+    //
+    if(!keepRunning) break;
 
     //
     std::cout << "transfered counts: " << i << "\n";
