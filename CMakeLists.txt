@@ -7,7 +7,11 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 #
-find_package(Boost 1.66 REQUIRED COMPONENTS program_options system)
+find_package(Boost 1.66 REQUIRED COMPONENTS program_options)
+if(Boost_FOUND)
+  message("Boost_INCLUDE_DIRS=${Boost_INCLUDE_DIRS}")
+  include_directories(${Boost_INCLUDE_DIRS})
+endif()
 
 #
 add_subdirectory(lib)
