@@ -186,16 +186,17 @@ int main(int argc, char *argv[])
     io_prep_pwrite(job, dpu_fd, allocated, size, 0);
     IO_RUN(io_submit, ctx, 1, &job);
     struct io_event evt;
-    int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
-    // while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
-    //   std::cout <<"send pending...\n";
-    // }
-    std::cout << evtnum << " events\n";
-    if(evtnum <=0)
-      io_cancel(ctx, job, NULL);
+    // int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
+    // std::cout << evtnum << " events\n";
+    // if (evtnum <= 0)
+    //   io_cancel(ctx, job, NULL);
+    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
+      std::cout <<"send pending...\n";
+    }
 
     //
     if(!keepRunning) {
+      io_cancel(ctx, job, NULL);
       std::cout << "grace exit\n";
       break;
     }
@@ -214,11 +215,12 @@ int main(int argc, char *argv[])
   std::cout << device << ": average BW = " << size << ", " << result << "\n";
 
   //
+  close(dpu_fd);
+  io_queue_release(ctx);
+  std::cout << "realse io_queue\n";
   close(in_fd);
   close(out_fd);
-  close(dpu_fd);
   free(allocated);
-  io_queue_release(ctx);
   std::cout << "end reached\n";
   
   return 0;
