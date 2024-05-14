@@ -86,7 +86,10 @@ void create_rdm_file(const char *filename, int count) {
 
 // 
 volatile sig_atomic_t keepRunning = 1;
-void sigHandler(int sig) { keepRunning = 0; }
+void sigHandler(int sig) {
+  keepRunning = 0;
+  std::cout << "signal received " <<keepRunning << "\n";
+}
 
 // only for xdma streaming device
 int main(int argc, char *argv[])
@@ -184,10 +187,16 @@ int main(int argc, char *argv[])
     IO_RUN(io_submit, ctx, 1, &job);
     struct io_event evt;
     // int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
-    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {}
+    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
+      std::cout <<"send pending...\n";
+    }
 
     //
-    if(!keepRunning) break;
+    if(!keepRunning) {
+      std::cout << "grace exit\n";
+      break;
+    }
+    
 
     //
     std::cout << "transfered counts: " << i << "\n";
@@ -207,6 +216,7 @@ int main(int argc, char *argv[])
   close(out_fd);
   close(dpu_fd);
   free(allocated);
+  io_queue_release(ctx);
   
   return 0;
 }
