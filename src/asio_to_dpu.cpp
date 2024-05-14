@@ -186,17 +186,16 @@ int main(int argc, char *argv[])
     io_prep_pwrite(job, dpu_fd, allocated, size, 0);
     IO_RUN(io_submit, ctx, 1, &job);
     struct io_event evt;
-    // int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
-    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
-      std::cout <<"send pending...\n";
-    }
+    int evtnum = io_getevents(ctx, 1, 1, &evt, &timeout);
+    // while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
+    //   std::cout <<"send pending...\n";
+    // }
 
     //
     if(!keepRunning) {
       std::cout << "grace exit\n";
       break;
     }
-    
 
     //
     std::cout << "transfered counts: " << i << "\n";
@@ -217,6 +216,7 @@ int main(int argc, char *argv[])
   close(dpu_fd);
   free(allocated);
   io_queue_release(ctx);
+  std::cout << "end reached\n";
   
   return 0;
 }
