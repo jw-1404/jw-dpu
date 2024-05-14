@@ -215,13 +215,10 @@ int main(int argc, char *argv[])
   std::cout << device << ": average BW = " << size << ", " << result << "\n";
 
   //
+  // io_queue_release(ctx);
+  free(allocated);
   close(dpu_fd);
-  io_queue_release(ctx);
-  std::cout << "realse io_queue\n";
   close(in_fd);
   close(out_fd);
-  free(allocated);
-  std::cout << "end reached\n";
-  
   return 0;
 }

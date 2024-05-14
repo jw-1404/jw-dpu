@@ -76,9 +76,20 @@ void save(io_context_t ctx, struct iocb *iocb, long res, long res2) {
     FATAL("Error writing output file");
 }
 
+//
+volatile sig_atomic_t keepRunning = 1;
+void sigHandler(int sig) {
+  keepRunning = 0;
+  std::cout << "signal received " << keepRunning << "\n";
+}
+
 // only for xdma streaming device
 int main(int argc, char *argv[])
 {
+  //
+  signal(SIGINT, sigHandler);
+
+  //
   long page_size = sysconf(_SC_PAGESIZE);
 
   std::string device;
@@ -150,20 +161,26 @@ int main(int argc, char *argv[])
   IO_RUN(io_queue_init, maxEvents, &ctx);
   /* This is the read job we asynchronously run */
   iocb *job = (iocb *)new iocb[1];
-  // struct timespec timeout = {0, 0};
+  struct timespec timeout = {0, 1000000};
 
   for (int i = 0; i < count; i++) {
     clock_gettime(CLOCK_MONOTONIC, &ts_start);
 
     memset(allocated, 0, size);
     io_prep_pread(job, dpu_fd, allocated, size, 0);
-    // io_set_callback(job, save);
-
-    /* Issue it now */
     IO_RUN(io_submit, ctx, 1, &job);
-    /* Wait for it */
     struct io_event evt;
-    IO_RUN(io_getevents, ctx, 1, 1, &evt, NULL);
+    while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
+      std::cout << "waiting new data...\n";
+    }
+
+    //
+    if (!keepRunning) {
+      io_cancel(ctx, job, NULL);
+      std::cout << "grace exit\n";
+      break;
+    }
+
     save(ctx, evt.obj, evt.res, evt.res2);
 
     //
@@ -179,10 +196,10 @@ int main(int argc, char *argv[])
   float result = ((float)size)*1000/avg_time;
   std::cout << device << ": average BW = " << size << ", " << result << "\n";
 
+  free(allocated);
   close(out_fd);
   close(dpu_fd);
-  free(allocated);
   
-  return rc;
+  return 0;
 }
 
