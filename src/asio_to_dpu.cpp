@@ -190,6 +190,9 @@ int main(int argc, char *argv[])
     // while (!io_getevents(ctx, 1, 1, &evt, &timeout) && keepRunning) {
     //   std::cout <<"send pending...\n";
     // }
+    std::cout << evtnum << " events\n";
+    if(evtnum <=0)
+      io_cancel(ctx, job, NULL);
 
     //
     if(!keepRunning) {
