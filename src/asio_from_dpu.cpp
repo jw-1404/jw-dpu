@@ -58,7 +58,7 @@ namespace po = boost::program_options;
 
 #define DEVICE_NAME_DEFAULT "/dev/xdma0_c2h_0"
 #define FILENAME_DEFAULT "output.dat"
-#define SIZE_DEFAULT 4096
+#define SIZE_DEFAULT 1
 #define COUNT_DEFAULT 1
 
 int dpu_fd = -1;
@@ -79,6 +79,8 @@ void save(io_context_t ctx, struct iocb *iocb, long res, long res2) {
 // only for xdma streaming device
 int main(int argc, char *argv[])
 {
+  long page_size = sysconf(_SC_PAGESIZE);
+
   std::string device;
   uint64_t count;
   std::string outfile;
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
     ("help,h", "help messages")
     ("verbose,v", po::bool_switch(&verbose), "verbose mode")
     ("device,d", po::value<std::string>(&device)->default_value(DEVICE_NAME_DEFAULT), "name of xdma device node")
-    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT),"size (in bytes) of a single transfer")
+    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT),"size (in 4096 bytes) of a single transfer")
     ("count,c", po::value<uint64_t>(&count)->default_value(COUNT_DEFAULT), "total number of transfers")
     ("output,o", po::value<std::string>(&outfile)->default_value(FILENAME_DEFAULT), "name of output file")
     ("flush,e", po::bool_switch(&flush), "truncate mode");
@@ -103,6 +105,9 @@ int main(int argc, char *argv[])
     std::cout << desc << "\n";
     return 0;
   }
+
+  // 
+  size = size * page_size;
 
   //
   if(flush)
@@ -126,10 +131,9 @@ int main(int argc, char *argv[])
   }
 
   //
-  posix_memalign((void **)&allocated, 4096 /*alignment */, size + 4096);
+  posix_memalign((void **)&allocated, page_size, size);
   if (!allocated) {
-    fprintf(stderr, "OOM %lu.\n", size + 4096);
-    std::cout << "OOM " << size+4096 << "\n";
+    std::cout << "OOM " << size << "\n";
     rc = -ENOMEM;
     close(dpu_fd);
     if (out_fd >= 0)

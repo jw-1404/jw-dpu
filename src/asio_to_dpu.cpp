@@ -57,7 +57,7 @@ static const void handle_error(int err) {
 namespace po = boost::program_options;
 
 #define DEVICE_NAME_DEFAULT "/dev/xdma0_h2c_0"
-#define SIZE_DEFAULT 4096
+#define SIZE_DEFAULT 1
 #define COUNT_DEFAULT 1
 #define FILENAME_DEFAULT "output_backup.dat"
 
@@ -85,6 +85,8 @@ void create_rdm_file(const char *filename, int count) {
 // only for xdma streaming device
 int main(int argc, char *argv[])
 {
+  long page_size = sysconf(_SC_PAGESIZE);
+
   std::string device;
   uint64_t count;
   boost::optional<std::string> infile;
@@ -97,7 +99,7 @@ int main(int argc, char *argv[])
     ("help,h", "help messages")
     ("verbose,v", po::bool_switch(&verbose), "verbose mode")
     ("device,d", po::value<std::string>(&device)->default_value(DEVICE_NAME_DEFAULT), "name of xdma device node")
-    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT), "size (in bytes) of a single transfer")
+    ("size,s", po::value<uint64_t>(&size)->default_value(SIZE_DEFAULT), "size (in 4096 bytes) of a single transfer")
     ("count,c", po::value<uint64_t>(&count)->default_value(COUNT_DEFAULT), "total number of transfers")
     ("output,o", po::value<std::string>(&outfile)->default_value(FILENAME_DEFAULT), "name of output file")
     ("input,i", po::value(&infile), "name of input file (from random if not provided)");
@@ -110,6 +112,9 @@ int main(int argc, char *argv[])
     std::cout << desc << "\n";
     return 0;
   }
+
+  //
+  size = size * page_size;
 
   /* Create a file and fill it with random crap */
   if (!infile) create_rdm_file("crap.dat", count);
@@ -136,9 +141,9 @@ int main(int argc, char *argv[])
   }
 
   //
-  posix_memalign((void **)&allocated, 4096 /*alignment */, size + 4096);
+  posix_memalign((void **)&allocated, page_size, size);
   if (!allocated) {
-    std::cout << "OOM " << size + 4096 << "\n";
+    std::cout << "OOM " << size << "\n";
     close(dpu_fd);
     close(in_fd);
     close(out_fd);
