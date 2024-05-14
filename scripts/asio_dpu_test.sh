@@ -7,10 +7,10 @@ transferCount=$4
 
 testError=0
 
-rm -f ../$outfile
-../src/asio_from_device -o $outfile -s $transferSize -c $transferCount &
+rm -f $outfile
+../src/asio_from_dpu -o $outfile -s $transferSize -c $transferCount &
 
-../src/asio_to_device -i ../$infile -s $transferSize -c $transferCount &
+../src/asio_to_dpu -i $infile -s $transferSize -c $transferCount &
 
 # Wait for the current transactions to complete
 echo "Info: Wait the for current transactions to complete."
