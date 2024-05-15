@@ -19,3 +19,11 @@ target_include_directories(asio_from_dpu PUBLIC ${PROJECT_SOURCE_DIR}/lib)
 add_executable(asio_to_dpu asio_to_dpu.cpp)
 target_link_libraries(asio_to_dpu PUBLIC aio Boost::program_options dma_util)
 target_include_directories(asio_to_dpu PUBLIC ${PROJECT_SOURCE_DIR}/lib)
+
+#####
+add_executable(file_source file_source.cpp)
+target_link_libraries(file_source PRIVATE aio Boost::program_options)
+
+add_executable(file_sink file_sink.cpp)
+target_link_libraries(file_sink PRIVATE aio Boost::program_options)
+
