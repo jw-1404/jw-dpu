@@ -15,7 +15,9 @@ namespace po = boost::program_options;
 
 #define AIO_BLKSIZE	(64*1024)
 #define AIO_MAXIO	1
+#define AIO_MAXWAIT 10000
 
+static int sleeped = 0;
 static char *buf = NULL;
 static off_t length = 0;
 static off_t offset = 0;
@@ -68,7 +70,7 @@ static void wr_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
   offset += res;
   length -= res;
   // memset(iocb, 0xff, sizeof(iocb));	// paranoia
-  free(iocb);
+  // free(iocb);
 
   busy=false;
   write(2, "w", 1);
@@ -91,12 +93,14 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
     fprintf(stderr, "read missing bytes expect %d got %d\n", iosize, res);
     // exit(1);
   }
+  sleeped = 0;
 
   /* turn read into write */
   io_prep_pwrite(iocb, dstfd, buf, res, offset);
   io_set_callback(iocb, wr_done);
   if (1 != (res = io_submit(ctx, 1, &iocb)))
     io_error("io_submit write", res);
+
   write(2, "r", 1);
 }
 
@@ -112,6 +116,7 @@ int main(int argc, char* argv[])
   std::string outfile;
   int aio_max;
   int aio_blksize;
+  int aio_wait;
   bool verbose = false;
 
   po::options_description desc("allowed opitons");
@@ -121,6 +126,7 @@ int main(int argc, char* argv[])
     ("length,l", po::value<off_t>(&length)->default_value(0), "total length of reading (in bytes)")
     ("max,m", po::value<int>(&aio_max)->default_value(AIO_MAXIO), "max number of aio requests")
     ("size,s", po::value<int>(&aio_blksize)->default_value(AIO_BLKSIZE), "block size of a single aio copy")
+    ("wait,w", po::value<int>(&aio_wait)->default_value(AIO_MAXWAIT), "max wait time (s) without new data from xdma")
     ("output,o", po::value<std::string>(&outfile), "outfile file");
 
   po::variables_map vm;
@@ -160,23 +166,20 @@ int main(int argc, char* argv[])
   memset(&myctx, 0, sizeof(myctx));
   io_queue_init(aio_max, &myctx);
 
+  struct iocb *io = (struct iocb*) malloc(sizeof(struct iocb));
+  if (NULL == io) {
+    fprintf(stderr, "out of memory\n");
+    exit(1);
+  }
+
   while(length >0) {
     int rc;
     int n = howmany(length, aio_blksize);
     if (!busy && n > 0) {
-	    struct iocb *ioq[1];
-      struct iocb *io = (struct iocb*) malloc(sizeof(struct iocb));
       int iosize = MIN(length, aio_blksize);
-      if (NULL == io) {
-        fprintf(stderr, "out of memory\n");
-        exit(1);
-      }
-
       io_prep_pread(io, srcfd, buf, iosize, 0);
       io_set_callback(io, rd_done);
-      ioq[0] = io;
-
-      rc = io_submit(myctx, 1, ioq);
+      rc = io_submit(myctx, 1, &io);
       if (rc < 0)
         io_error("io_submit", rc);
 
@@ -201,6 +204,21 @@ int main(int argc, char* argv[])
     //
     if(busy) {
       usleep(1000);
+      sleeped += 1;
+    }
+
+    //
+    if(sleeped > aio_wait) {
+      struct io_event event;
+      rc = io_cancel(myctx, io, &event);
+      std::cout << sleeped << " : res = " << event.res <<"res2 = " << event.res2 << "\n";
+      // io_queue_release(myctx);
+
+      close(srcfd);
+      close(dstfd);
+      
+      sleeped = 0;
+      busy = false;
     }
   }
 
