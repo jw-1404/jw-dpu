@@ -14,7 +14,7 @@
 #define RW_MAX_SIZE	0x7ffff000
 
 
-uint64_t getopt_integer(char *optarg)
+uint64_t getopt_integer(const char *optarg)
 {
 	int rc;
 	uint64_t value;
@@ -28,9 +28,11 @@ uint64_t getopt_integer(char *optarg)
 }
 
 /* read until all requested bytes back */
-ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
+ssize_t read_to_buffer(const char *fname, int fd, char *buffer, uint64_t size,
 			uint64_t base)
 {
+  fprintf(stdout, "read %s: 0x%lx@0x%lx.\n", fname, size, buffer);
+
 	ssize_t rc;
 	off_t offset = base;
   if (offset) {
@@ -52,11 +54,13 @@ ssize_t read_to_buffer(char *fname, int fd, char *buffer, uint64_t size,
     return -EIO;
   }
 
+  fprintf(stdout, "read %s: 0x%lx/0x%lx.\n", fname, rc, size);
+
 	return rc;
 }
 
 /* write until all requested bytes out */
-ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size,
+ssize_t write_from_buffer(const char *fname, int fd, char *buffer, uint64_t size,
 			uint64_t base)
 {
 	ssize_t rc;
@@ -100,8 +104,8 @@ ssize_t write_from_buffer(char *fname, int fd, char *buffer, uint64_t size,
 		loop++;
 	}
 
-  fprintf(stdout, "%s (loop-%d, the end), write 0x%lx/0x%lx.\n",
-          fname, loop, count, size);
+  fprintf(stdout, "write %s (final): 0x%lx/0x%lx.\n",
+          fname, count, size);
 
 	return count;
 }

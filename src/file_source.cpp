@@ -118,11 +118,14 @@ int main(int argc, char *const *argv)
   int aio_max;
   int aio_blksize;
   bool verbose = false;
+  bool fix_len = false;
 
   po::options_description desc("allowed opitons");
   desc.add_options()
     ("help,h","help message")
     ("verbose,v", po::bool_switch(&verbose), "verbose mode")
+    ("length,l", po::value<off_t>(&length)->default_value(0), "total length of reading (in bytes)")
+    ("fixed", po::bool_switch(&fix_len), "fixed length")
     ("max,m", po::value<int>(&aio_max)->default_value(AIO_MAXIO), "max number of aio requests")
     ("size,s", po::value<int>(&aio_blksize)->default_value(AIO_BLKSIZE), "block size of a single aio copy")
     ("input,i", po::value<std::string>(&infile), "input file");
@@ -142,11 +145,13 @@ int main(int argc, char *const *argv)
     perror(srcname);
     exit(1);
   }
+
   if (fstat(srcfd, &st) < 0) {
     perror("fstat");
     exit(1);
   }
-  length = st.st_size;
+  else if(!fix_len)
+    length = st.st_size;
 
   dstname = "/dev/xdma0_h2c_0";
   if ((dstfd = open(dstname, O_WRONLY | O_CREAT, 0666)) < 0) {

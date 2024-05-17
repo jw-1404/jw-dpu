@@ -17,9 +17,11 @@ namespace po = boost::program_options;
 #define AIO_MAXIO	1
 #define AIO_MAXWAIT 10000
 
+static bool verbose = false;
 static int sleeped = 0;
+static bool first_sleeped = false;
 static char *buf = NULL;
-static off_t length = 0;
+static int64_t length = 0;
 static off_t offset = 0;
 static bool busy = false;		// # of I/O's in flight
 static int srcfd = -1;		// destination file descriptor
@@ -48,8 +50,8 @@ static void io_error(const char *func, int rc)
 
   if (dstfd > 0)
     close(dstfd);
-  if (dstname)
-    unlink(dstname);
+  // if (dstname)
+  //   unlink(dstname);
 
   exit(1);
 }
@@ -60,6 +62,8 @@ static void io_error(const char *func, int rc)
  */
 static void wr_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
 {
+  if(verbose) std::cout << "in wr_done\n";
+
   if (res2 != 0) {
     io_error("aio write", res2);
   }
@@ -67,13 +71,18 @@ static void wr_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
     fprintf(stderr, "write missed bytes expect %d got %d\n", iocb->u.c.nbytes, res);
     exit(1);
   }
+
   offset += res;
   length -= res;
   // memset(iocb, 0xff, sizeof(iocb));	// paranoia
   // free(iocb);
 
   busy=false;
-  write(2, "w", 1);
+  sleeped = 0;
+
+  if(verbose)
+    std::cout <<"wd_done: current:" << res << " , total: " << offset << " bytes received\n";
+  write(2, "w\n", 2);
 }
 
 /*
@@ -82,6 +91,8 @@ static void wr_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
  */
 static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
 {
+  if(verbose) std::cout << "in rd_done\n";
+  
   /* library needs accessors to look at iocb? */
   int iosize = iocb->u.c.nbytes;
   char *buf = static_cast<char*>(iocb->u.c.buf);
@@ -90,16 +101,29 @@ static void rd_done(io_context_t ctx, struct iocb *iocb, long res, long res2)
   if (res2 != 0)
     io_error("aio read", res2);
   if (res != iosize) {
-    fprintf(stderr, "read missing bytes expect %d got %d\n", iosize, res);
+    fprintf(stderr, "read unexpected nr of bytes: expect %d, got %d\n", iosize, res);
     // exit(1);
   }
-  sleeped = 0;
 
   /* turn read into write */
-  io_prep_pwrite(iocb, dstfd, buf, res, offset);
-  io_set_callback(iocb, wr_done);
-  if (1 != (res = io_submit(ctx, 1, &iocb)))
-    io_error("io_submit write", res);
+  if(dstfd > 0) {
+    io_prep_pwrite(iocb, dstfd, buf, res, offset);
+    io_set_callback(iocb, wr_done);
+    if (1 != (res = io_submit(ctx, 1, &iocb)))
+      io_error("io_submit write", res);
+  }
+  else {
+    offset += res;
+    length -= res;
+    // memset(iocb, 0xff, sizeof(iocb));	// paranoia
+    // free(iocb);
+
+    busy=false;
+    sleeped = 0;
+    if(verbose)
+      std::cout <<"rd_done: current:" << res << " , total: " << offset << " bytes received\n";
+
+  }
 
   write(2, "r", 1);
 }
@@ -117,13 +141,14 @@ int main(int argc, char* argv[])
   int aio_max;
   int aio_blksize;
   int aio_wait;
-  bool verbose = false;
+  bool eop_flush = false;
 
   po::options_description desc("allowed opitons");
   desc.add_options()
     ("help,h","help message")
     ("verbose,v", po::bool_switch(&verbose), "verbose mode")
-    ("length,l", po::value<off_t>(&length)->default_value(0), "total length of reading (in bytes)")
+    ("eopflush,e", po::bool_switch(&eop_flush), "End-of-Packet flush of XDMA")
+    ("length,l", po::value<int64_t>(&length)->default_value(0), "total length of reading (in bytes)")
     ("max,m", po::value<int>(&aio_max)->default_value(AIO_MAXIO), "max number of aio requests")
     ("size,s", po::value<int>(&aio_blksize)->default_value(AIO_BLKSIZE), "block size of a single aio copy")
     ("wait,w", po::value<int>(&aio_wait)->default_value(AIO_MAXWAIT), "max wait time (s) without new data from xdma")
@@ -133,23 +158,30 @@ int main(int argc, char* argv[])
   po::store(po::parse_command_line(argc, argv, desc), vm);
   po::notify(vm);
 
-  if (vm.count("help") || !vm.count("output")) {
+  if (vm.count("help")) {
     std::cout << desc << "\n";
     return 0;
   }
 
   // output init
-  dstname = outfile.c_str();
-  if ((dstfd = open(dstname, O_WRONLY | O_CREAT, 0666)) < 0) {
-    perror(dstname);
-    exit(1);
+  if(vm.count("output")) {
+    dstname = outfile.c_str();
+    if ((dstfd = open(dstname, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666)) < 0) {
+      perror(dstname);
+      exit(1);
+    }
   }
 
   // dpu init
   srcname = "/dev/xdma0_c2h_0";
-  if ((srcfd = open(srcname, O_RDONLY)) < 0) {
+  if(!eop_flush)
+    srcfd = open(srcname, O_RDONLY);
+  else
+    srcfd = open(srcname, O_RDONLY | O_TRUNC);
+
+  if (srcfd < 0) {
     perror(srcname);
-    close(dstfd);
+    if(dstfd > 0) close(dstfd);
     exit(1);
   }
 
@@ -158,7 +190,7 @@ int main(int argc, char* argv[])
   if (!buf) {
     perror("can't allocate memory");
     close(srcfd);
-    close(dstfd);
+    if(dstfd > 0) close(dstfd);
     exit(1);
   }
 
@@ -175,6 +207,11 @@ int main(int argc, char* argv[])
   while(length >0) {
     int rc;
     int n = howmany(length, aio_blksize);
+
+    // if(verbose) {
+    //   std::cout << "remaining bytes to read: " << length  << ", busy: " << busy << " , n=" << n<< "\n";
+    // }
+
     if (!busy && n > 0) {
       int iosize = MIN(length, aio_blksize);
       io_prep_pread(io, srcfd, buf, iosize, 0);
@@ -209,23 +246,37 @@ int main(int argc, char* argv[])
 
     //
     if(sleeped > aio_wait) {
-      struct io_event event;
-      rc = io_cancel(myctx, io, &event);
-      std::cout << sleeped << " : res = " << event.res <<"res2 = " << event.res2 << "\n";
-      // io_queue_release(myctx);
-
-      close(srcfd);
-      close(dstfd);
+      if(verbose && first_sleeped && sleeped%10000==0) {
+        std::cout << "wainted " <<sleeped << " ms\n";
+      }
       
-      sleeped = 0;
-      busy = false;
+      if(!first_sleeped) {
+        // struct io_event event;
+        // rc = io_cancel(myctx, io, &event);
+
+        if(dstfd > 0)
+          close(dstfd);
+        dstfd=-1;
+
+        std::cout << "WARN:\n \tmax wait time reached\n"
+                  << "\tdata file closed, totally " << offset << " bytes saved.\n"
+                  << "\tand future arrived data will be dumped\n";
+
+        first_sleeped = true;
+        // sleeped = 0;
+        // busy = false;
+      }
     }
   }
+  std::cout <<"app: end reading\n";
 
   // 
   close(srcfd);
-  close(dstfd);
+  if(dstfd > 0)
+    close(dstfd);
+  std::cout <<"app: all closed\n";
   free(buf);
+  std::cout <<"app: eol\n";
   
   exit(0);
 }
