@@ -37,7 +37,20 @@ static uint64_t total_length = 0;
 volatile sig_atomic_t keepRunning = 1;
 void sigHandler(int sig) {
   keepRunning = 0;
+  if(srcfd) close(srcfd);
+  
   std::cout << "\nWARN: transfer to be cloesd, waiting for last timeout ...\n";
+}
+
+/* restarts */
+void restart()
+{
+  if(srcfd) close(srcfd);
+
+  if(!eop_flush)
+    srcfd = open(srcname, O_RDONLY);
+  else
+    srcfd = open(srcname, O_RDONLY | O_TRUNC);
 }
 
 /* Fatal error handler */
@@ -64,8 +77,6 @@ void cleanup(const char *func, int rc)
 /* read from xdma */
 ssize_t read_to_buffer(const char *fname, int fd, char *buffer, uint64_t size)
 {
-  fprintf(stdout, "read %s: 0x%lx@0x%lx.\n", fname, size, buffer);
-
 	ssize_t rc;
   rc = read(fd, buffer, size);
   if (rc < 0) {
@@ -73,9 +84,27 @@ ssize_t read_to_buffer(const char *fname, int fd, char *buffer, uint64_t size)
     return -EIO;
   }
 
-  fprintf(stdout, "read %s: 0x%lx/0x%lx.\n", fname, rc, size);
+  if(verbose)
+    fprintf(stdout, "read %s: 0x%lx/0x%lx.\n", fname, rc, size);
 
 	return rc;
+}
+
+/* write until all requested bytes out */
+ssize_t write_from_buffer(const char *fname, int fd, char *buffer, uint64_t size)
+{
+	ssize_t rc;
+  rc = write(fd, buffer, size);
+  if (rc < 0) {
+    fprintf(stderr, "%s, write 0x%lx failed %ld.\n", fname, size, rc);
+    perror("write file");
+    return -EIO;
+  }
+
+  if(verbose)
+    fprintf(stdout, "write %s (final): 0x%lx/0x%lx.\n", fname, rc, size);
+
+  return rc;
 }
 
 
@@ -107,13 +136,13 @@ int main(int argc, char *argv[])
   }
 
   // output file
-  // if(vm.count("output")) {
-  //   dstname = outfile.c_str();
-  //   if ((dstfd = open(dstname, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666)) < 0) {
-  //     perror(dstname);
-  //     exit(1);
-  //   }
-  // }
+  if(vm.count("output")) {
+    dstname = outfile.c_str();
+    if ((dstfd = open(dstname, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0666)) < 0) {
+      perror(dstname);
+      exit(1);
+    }
+  }
 
 	/*
 	 * xdma device init: use O_TRUNC to indicate to the driver to flush the data up based on
@@ -189,12 +218,12 @@ int main(int argc, char *argv[])
                 srcname, rc, bytes);
       }
 
-      // if (dstfd > 0) {
-      //   int erc = write_from_buffer(dstname, dstfd, buffer, rc, 0);
-      //   if (erc < 0 || erc < rc) {
-      //     cleanup("write outfile", erc);
-      //   }
-      // }
+      if (dstfd > 0) {
+        int erc = write_from_buffer(dstname, dstfd, buffer, rc);
+        if (erc < 0) {
+          cleanup("write outfile", erc);
+        }
+      }
 
       //
       bytes_done += rc;
@@ -204,6 +233,9 @@ int main(int argc, char *argv[])
       if(!daemon_flag)
         bytes_remaining -= rc;
     }
+
+    if(verbose)
+      std::cout <<"ready for next blk\n";
 	}
 
   cleanup("Normal exit", 0);
