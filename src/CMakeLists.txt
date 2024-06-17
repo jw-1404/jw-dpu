@@ -34,7 +34,9 @@ target_include_directories(asio_to_dpu PUBLIC ${PROJECT_SOURCE_DIR}/lib)
 add_executable(jw_mmap_rw jw_mmap_rw.c)
 
 ##### r/w single byte/half-word/word in streaming mode
-# add_executable(jw_streaming_rw jw_streaming_rw.c)
+add_executable(jw_stream_rw jw_stream_rw.c)
+target_link_libraries(jw_stream_rw PUBLIC dma_util)
+target_include_directories(jw_stream_rw PUBLIC ${PROJECT_SOURCE_DIR}/lib)
 
 ##### try to open/close a xdma character device
 add_executable(jw_test_chrdev jw_test_chrdev.c)
