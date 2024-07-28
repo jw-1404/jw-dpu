@@ -9,7 +9,7 @@
 #include <ctype.h>
 
 #include <sys/types.h>
-#include "./dma_utils.h"
+#include "dma_utils.h"
 
 /* ltoh: little endian to host */
 /* htol: host to little endian */

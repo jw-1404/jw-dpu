@@ -24,7 +24,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "./dma_utils.h"
+#include "dma_utils.h"
 
 int verbose = 0;
 

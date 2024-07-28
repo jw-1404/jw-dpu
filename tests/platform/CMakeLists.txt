@@ -1,2 +1,2 @@
-add_executable(getpgsize getpgsize.cpp)
-add_executable(sighdl sighdl.cpp)
+add_executable(jw_getpgsize getpgsize.cpp)
+add_executable(jw_sighdl sighdl.cpp)

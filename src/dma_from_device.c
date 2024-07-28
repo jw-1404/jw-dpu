@@ -23,7 +23,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 
-#include "./dma_utils.h"
+#include "dma_utils.h"
 
 #define DEVICE_NAME_DEFAULT "/dev/xdma0_c2h_0"
 #define SIZE_DEFAULT (4096)

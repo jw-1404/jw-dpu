@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 #
 find_package(Threads)
-find_package(Boost 1.66 REQUIRED COMPONENTS program_options system)
+find_package(Boost REQUIRED COMPONENTS program_options system)
 if(Boost_FOUND)
   message("Boost_INCLUDE_DIRS=${Boost_INCLUDE_DIRS}")
   include_directories(${Boost_INCLUDE_DIRS})
